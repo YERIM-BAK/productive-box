@@ -1,0 +1,48 @@
+name: Update commit count
+
+on:
+  schedule:
+    - cron: "0 0 * * *" # 매일 UTC 00:00에 실행
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+      - master
+
+permissions:
+  contents: write
+
+jobs:
+  update-commit-count:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Run commit count updater
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }} # 리포지토리 시크릿에 추가하세요
+        run: |
+          bash .github/scripts/update-commit-count.sh
+
+      - name: Commit & push README if changed (use token for authentication)
+        env:
+          GH_PAT: ${{ secrets.GH_PAT }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git diff --staged --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "chore: update total commit count"
+            repo="${GITHUB_REPOSITORY}"
+            # GH_PAT를 이용해 인증된 remote URL로 바꿔서 push
+            git remote set-url origin "https://x-access-token:${GH_PAT}@github.com/${repo}.git"
+            git push origin HEAD:$(git rev-parse --abbrev-ref HEAD)
+          fi
